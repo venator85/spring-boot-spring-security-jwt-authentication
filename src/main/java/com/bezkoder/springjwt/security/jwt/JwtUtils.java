@@ -1,6 +1,15 @@
 package com.bezkoder.springjwt.security.jwt;
 
-import java.util.Date;
+import com.bezkoder.springjwt.security.services.UserDetailsImpl;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.MACVerifier;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,51 +17,50 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
-import com.bezkoder.springjwt.security.services.UserDetailsImpl;
-import io.jsonwebtoken.*;
+import java.text.ParseException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+
 
 @Component
 public class JwtUtils {
-  private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
-  @Value("${bezkoder.app.jwtSecret}")
-  private String jwtSecret;
+    @Value("${bezkoder.app.jwtSecret}")
+    private String jwtSecret;
 
-  @Value("${bezkoder.app.jwtExpirationMs}")
-  private int jwtExpirationMs;
+    @Value("${bezkoder.app.jwtExpirationMs}")
+    private int jwtExpirationMs;
 
-  public String generateJwtToken(Authentication authentication) {
+    public String generateJwtToken(Authentication authentication) throws JOSEException {
+        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
-    UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+        JWSSigner signer = new MACSigner(jwtSecret);
 
-    return Jwts.builder()
-        .setSubject((userPrincipal.getUsername()))
-        .setIssuedAt(new Date())
-        .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
-        .signWith(SignatureAlgorithm.HS512, jwtSecret)
-        .compact();
-  }
+        Instant now = Instant.now();
+        Date exp = new Date(now.plus(jwtExpirationMs, ChronoUnit.MILLIS).toEpochMilli());
 
-  public String getUserNameFromJwtToken(String token) {
-    return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject();
-  }
+        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
+                .issueTime(new Date(now.toEpochMilli()))
+                .expirationTime(exp)
+                .subject(userPrincipal.getUsername())
+                .build();
 
-  public boolean validateJwtToken(String authToken) {
-    try {
-      Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(authToken);
-      return true;
-    } catch (SignatureException e) {
-      logger.error("Invalid JWT signature: {}", e.getMessage());
-    } catch (MalformedJwtException e) {
-      logger.error("Invalid JWT token: {}", e.getMessage());
-    } catch (ExpiredJwtException e) {
-      logger.error("JWT token is expired: {}", e.getMessage());
-    } catch (UnsupportedJwtException e) {
-      logger.error("JWT token is unsupported: {}", e.getMessage());
-    } catch (IllegalArgumentException e) {
-      logger.error("JWT claims string is empty: {}", e.getMessage());
+        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), jwtClaimsSet);
+        signedJWT.sign(signer);
+
+        return signedJWT.serialize();
     }
 
-    return false;
-  }
+    public String validateJwtTokenAndExtractUsername(String jwt) throws JOSEException, ParseException {
+        JWSVerifier verifier = new MACVerifier(jwtSecret);
+
+        SignedJWT signedJWT = SignedJWT.parse(jwt);
+        if (!signedJWT.verify(verifier)) {
+            throw new IllegalArgumentException("JWT failed verification");
+        }
+
+        return signedJWT.getJWTClaimsSet().getSubject();
+    }
 }
