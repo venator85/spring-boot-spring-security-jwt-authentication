@@ -5,6 +5,9 @@ import com.bezkoder.springjwt.models.Role;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Component
 public class InitialDbData {
@@ -16,9 +19,20 @@ public class InitialDbData {
         loadUsers();
     }
 
-    private void loadUsers() {
-        roleRepository.save(new Role(ERole.ROLE_USER));
-        roleRepository.save(new Role(ERole.ROLE_MODERATOR));
-        roleRepository.save(new Role(ERole.ROLE_ADMIN));
+    @Transactional
+    void loadUsers() {
+        List<Role> roles = roleRepository.findAll();
+        boolean hasRoleUser = roles.stream().anyMatch((role) -> role.getName() == ERole.ROLE_USER);
+        boolean hasRoleModerator = roles.stream().anyMatch((role) -> role.getName() == ERole.ROLE_MODERATOR);
+        boolean hasRoleAdmin = roles.stream().anyMatch((role) -> role.getName() == ERole.ROLE_ADMIN);
+        if (!hasRoleUser) {
+            roleRepository.save(new Role(ERole.ROLE_USER));
+        }
+        if (!hasRoleModerator) {
+            roleRepository.save(new Role(ERole.ROLE_MODERATOR));
+        }
+        if (!hasRoleAdmin) {
+            roleRepository.save(new Role(ERole.ROLE_ADMIN));
+        }
     }
 }
