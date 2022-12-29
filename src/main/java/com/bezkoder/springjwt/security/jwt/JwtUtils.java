@@ -1,15 +1,6 @@
 package com.bezkoder.springjwt.security.jwt;
 
 import com.bezkoder.springjwt.security.services.UserDetailsImpl;
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,10 +8,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
-import java.text.ParseException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+
+import javax.crypto.SecretKey;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 
 @Component
@@ -33,34 +31,31 @@ public class JwtUtils {
     @Value("${bezkoder.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
-    public String generateJwtToken(Authentication authentication) throws JOSEException {
+    public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
-        JWSSigner signer = new MACSigner(jwtSecret);
-
         Instant now = Instant.now();
+
+        Date issuedAt = new Date(now.toEpochMilli());
         Date exp = new Date(now.plus(jwtExpirationMs, ChronoUnit.MILLIS).toEpochMilli());
 
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .issueTime(new Date(now.toEpochMilli()))
-                .expirationTime(exp)
-                .subject(userPrincipal.getUsername())
-                .build();
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
-        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), jwtClaimsSet);
-        signedJWT.sign(signer);
-
-        return signedJWT.serialize();
+        return Jwts.builder()
+                .setSubject(userPrincipal.getUsername())
+                .setIssuedAt(issuedAt)
+                .setExpiration(exp)
+                .signWith(key)
+                .compact();
     }
 
-    public String validateJwtTokenAndExtractUsername(String jwt) throws JOSEException, ParseException {
-        JWSVerifier verifier = new MACVerifier(jwtSecret);
+    public String validateJwtTokenAndExtractUsername(String jwt) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
-        SignedJWT signedJWT = SignedJWT.parse(jwt);
-        if (!signedJWT.verify(verifier)) {
-            throw new IllegalArgumentException("JWT failed verification");
-        }
-
-        return signedJWT.getJWTClaimsSet().getSubject();
+        Jws<Claims> jws = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(jwt);
+        return jws.getBody().getSubject();
     }
 }

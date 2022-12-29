@@ -14,10 +14,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("com.nimbusds:nimbus-jose-jwt:9.25.6")
-
-    providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
+	providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 	runtimeOnly("com.h2database:h2")
+
+	val jjwtVersion = "0.11.5"
+	implementation("io.jsonwebtoken:jjwt-api:$jjwtVersion")
+	runtimeOnly("io.jsonwebtoken:jjwt-impl:$jjwtVersion")
+	runtimeOnly("io.jsonwebtoken:jjwt-jackson:$jjwtVersion")
 }
 
 group = "com.bezkoder"
