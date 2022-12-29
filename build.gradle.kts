@@ -1,6 +1,5 @@
 plugins {
     java
-    war
     id("org.springframework.boot") version "3.0.1"
     id("io.spring.dependency-management") version "1.1.0"
 }
@@ -14,7 +13,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
-	providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 	runtimeOnly("com.h2database:h2")
 
 	val jjwtVersion = "0.11.5"
